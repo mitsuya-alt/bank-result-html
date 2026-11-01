@@ -1,0 +1,10 @@
+.env
+.vscode/settings.json
+.DS_Store
+.coverage
+.coverage.*
+htmlcov/
+__pycache__/
+.pytest_cache/
+.venv/
+.aws-sam/

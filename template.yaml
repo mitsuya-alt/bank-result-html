@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Bank result HTML API
+
+Parameters:
+  DbUrl:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /insurance-batch/dev/database/python-url
+    Description: SSM key for Python libpq connection string (not JDBC)
+  DbSecretArn:
+    Type: String
+    Description: Existing Secrets Manager secret containing username and password
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Private subnets with routes to Aurora
+  SecurityGroupIds:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Description: Existing Lambda security groups allowed to connect to Aurora
+
+Resources:
+  BankResultApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: dev
+      Auth:
+        DefaultAuthorizer: AWS_IAM
+
+  BankResultFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Architectures: [x86_64]
+      MemorySize: 256
+      Timeout: 30
+      VpcConfig:
+        SubnetIds: !Ref SubnetIds
+        SecurityGroupIds: !Ref SecurityGroupIds
+      Environment:
+        Variables:
+          DB_URL: !Ref DbUrl
+          DB_USERNAME: !Sub '{{resolve:secretsmanager:${DbSecretArn}:SecretString:username}}'
+          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${DbSecretArn}:SecretString:password}}'
+      Policies:
+        - AWSLambdaVPCAccessExecutionRole
+      Events:
+        GetHtml:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BankResultApi
+            Path: /bank-results/{bank_result_id}/html
+            Method: get
+  BankResultLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${BankResultFunction}'
+      RetentionInDays: 7
+
+Outputs:
+  FunctionName:
+    Value: !Ref BankResultFunction
+  ApiUrl:
+    Value: !Sub 'https://${BankResultApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/dev/bank-results/5/html'

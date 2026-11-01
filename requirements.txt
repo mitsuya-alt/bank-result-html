@@ -1,0 +1,5 @@
+# ローカル開発・CodeBuildのテスト用
+-r src/requirements.txt
+coverage>=7.6,<8
+pytest>=8,<10
+pytest-cov>=6,<8

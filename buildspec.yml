@@ -1,0 +1,43 @@
+# Python API用。以下のSecret名を実際のDB用Secret名かARNへ置き換える。
+# CodeBuild側にもAuroraへ接続できるVPC・サブネット・SGと、SSM/Secret取得権限が必要。
+version: 0.2
+
+env:
+  variables:
+    TEST_BANK_RESULT_ID: '5'
+  parameter-store:
+    DB_URL: /insurance-batch/dev/database/python-url
+  secrets-manager:
+    DB_USERNAME: 'REPLACE_WITH_DB_SECRET_NAME_OR_ARN:username'
+    DB_PASSWORD: 'REPLACE_WITH_DB_SECRET_NAME_OR_ARN:password'
+
+phases:
+  install:
+    on-failure: ABORT
+    runtime-versions:
+      python: 3.12
+    commands:
+      - python -m pip install -r requirements.txt
+  pre_build:
+    on-failure: ABORT
+    commands:
+      # CodeBuildだけで必須チェック。未設定ならローカル初期値へ流れない。
+      - ': "${DB_URL:?DB_URL is required}"'
+      - ': "${DB_USERNAME:?DB_USERNAME is required}"'
+      - ': "${DB_PASSWORD:?DB_PASSWORD is required}"'
+  build:
+    on-failure: ABORT
+    commands:
+      # 未設定なら接続前に失敗。モックは使わず、実DBの接続とJOIN・HTML生成を確認。
+      - python -m coverage run --branch --source=src -m pytest -v tests
+      - python -m coverage report --show-missing
+
+# テスト工程の成果物。SAMによるビルド・デプロイは後段で実施する。
+artifacts:
+  files:
+    - src/**/*
+    - tests/**/*
+    - template.yaml
+    - buildspec.yml
+    - requirements.txt
+    - pytest.ini
